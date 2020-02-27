@@ -1,0 +1,447 @@
+class PlayedGame {
+	depend java.awt.geom.Ellipse2D;
+	depend java.awt.geom.Line2D;
+	depend java.awt.geom.Point2D;
+	depend java.awt.geom.Rectangle2D;
+	
+	depend ca.mcgill.ecse223.block.model.BouncePoint.BounceDirection;
+  // State Machine
+  
+  playStatus {
+    Ready {
+      entry / { doSetup(); }
+      play -> Moving;
+    }
+    Moving {
+      pause -> Paused;
+      move [hitPaddle()] / { doHitPaddleOrWall(); } -> Moving;
+      move [isOutOfBoundsAndLastLife()] / { doOutOfBounds(); } -> GameOver;
+      move [isOutOfBounds()] / { doOutOfBounds(); } -> Paused;
+      move [hitLastBlockAndLastLevel()] / { doHitBlock(); } -> GameOver;
+      move [hitLastBlock()] / { doHitBlockNextLevel(); } -> Ready;
+      move [hitBlock()] / { doHitBlock(); } -> Moving;
+      move [hitWall()] / { doHitPaddleOrWall(); } -> Moving;
+      move / { doHitNothingAndNotOutOfBounds(); } -> Moving;
+    }
+    Paused {
+      play -> Moving;
+    }
+    GameOver {
+      entry / { doGameOver(); }
+    }
+  }
+  
+  // Guards
+  
+  /**
+	 * Feature 3 : hitPaddle()
+	 * @author: Walid Chabchoub
+	 *  
+	 */
+   private boolean hitPaddle(){
+
+		double ballX = this.getCurrentBallX();
+		double ballY = this.getCurrentPaddleY();
+		double ballDirX = this.getBallDirectionX();
+		double ballDirY = this.getBallDirectionY();
+
+		BouncePoint bp = calculateBouncePointPaddle(ballX, ballY, ballDirX, ballDirY);
+		if(bp!= null) {
+			setBounce(bp);
+			return true;
+		}else {
+			return false;
+		}
+	}
+	
+	/**
+	 * Helper method calculate BouncePoint Paddle.
+	 *
+	 * Feature 3 : calculateBouncePointPaddle()
+	 * @author: Walid Chabchoub
+	 *  
+	 */
+	private BouncePoint calculateBouncePointPaddle(double ballX, double ballY, double ballDirX, double ballDirY) {
+		/*
+		 * Setting Rectangle2D(x, y, width, height) with x/y being at top-left of rectangle
+		 * In Java AWT, height is the width in the Iter 4 sample sol
+		 * and width is the length of box A 
+		 */
+
+		// Ball related variables 
+		double ballRadius = Ball.BALL_DIAMETER/2;
+		Line2D ballTrajectory = new Line2D.Double(ballX, ballY, ballX+ballDirX, ballY+ballDirY);
+
+		// Paddle stuff
+		double paddleX = this.getCurrentPaddleX();
+		double paddleY = this.getCurrentPaddleY();
+		double paddleLength = this.getCurrentPaddleLength();
+		double paddleWidth = (double) Paddle.PADDLE_WIDTH;
+
+		// Defining our boxes A, B, C, E, F
+		Rectangle2D fullBox = new Rectangle2D.Double(paddleX-paddleLength/2 - ballRadius, paddleY-paddleWidth/2 - ballRadius,
+				paddleLength+2*ballRadius, 2*ballRadius);
+		Rectangle2D boxA = new Rectangle2D.Double(paddleX-paddleLength/2, (paddleY-paddleWidth/2)-ballRadius,
+				paddleLength, ballRadius);
+		Rectangle2D boxB = new Rectangle2D.Double(paddleX-paddleLength/2 - ballRadius, paddleY-paddleWidth/2,
+				ballRadius, ballRadius);
+		Rectangle2D boxC = new Rectangle2D.Double(paddleX+paddleLength/2, paddleY-paddleWidth/2,
+				ballRadius, ballRadius);
+		Rectangle2D boxE = new Rectangle2D.Double(paddleX-paddleLength/2 - ballRadius, paddleY-paddleWidth/2 - ballRadius,
+				ballRadius, ballRadius);
+		Rectangle2D boxF = new Rectangle2D.Double(paddleX+paddleLength/2, paddleY-paddleWidth/2 - ballRadius,
+				ballRadius, ballRadius);
+		
+		// Checking first if the ball is even going to hit the paddle at all
+		if(fullBox.intersectsLine(ballTrajectory)) {
+			
+			//Next checking each box hit
+			if(boxA.intersectsLine(ballTrajectory)) {
+				//yellowLineA here is the top of box A where the ball is going to hit
+				Line2D yellowLineA = new Line2D.Double(boxA.getX(), boxA.getY(), boxA.getX()+boxA.getWidth(), boxA.getY());
+				Point2D intersectionPoint = getIntersectionPoint(ballTrajectory, yellowLineA);
+				return new BouncePoint(intersectionPoint.getX(), intersectionPoint.getY(), BounceDirection.FLIP_Y);
+			}else if(boxB.intersectsLine(ballTrajectory)) {
+				//yellowLineB here is the left of box B where the ball is going to hit
+				Line2D yellowLineB = new Line2D.Double(boxB.getX(), boxB.getY(), boxB.getX(), boxA.getY()+ballRadius);
+				Point2D intersectionPoint = getIntersectionPoint(ballTrajectory, yellowLineB);
+				return new BouncePoint(intersectionPoint.getX(), intersectionPoint.getY(), BounceDirection.FLIP_X);
+			}else if(boxC.intersectsLine(ballTrajectory)) {
+				//yellowLineC here is the right of box C where the ball is going to hit
+				Line2D yellowLineC = new Line2D.Double(boxC.getX()+ballRadius, boxC.getY(), boxC.getX()+ballRadius, boxC.getY()+ballRadius);
+				Point2D intersectionPoint = getIntersectionPoint(ballTrajectory, yellowLineC);
+				return new BouncePoint(intersectionPoint.getX(), intersectionPoint.getY(), BounceDirection.FLIP_X);			
+			}else if(boxE.intersectsLine(ballTrajectory)) {
+				// Will be treating the problem as a full circle instead of quarter circle segment
+				// Center of circle is conveniently next to box B (x, y) coordinates being at the top-left corner (adding a ball radius to x)
+				Point2D circleECenter = new Point2D.Double(boxB.getX()+ballRadius, boxB.getY());
+				Point2D intersectionPoint = getCircleLineIntersectionPoint(ballTrajectory.getP1(), ballTrajectory.getP2(), circleECenter, ballRadius);
+				// If ball approaches from left
+				if(ballX < ballX + ballDirX) {
+					return new BouncePoint(intersectionPoint.getX(), intersectionPoint.getY(), BounceDirection.FLIP_X);
+				}
+				// If ball approaches from right
+				else{
+					return new BouncePoint(intersectionPoint.getX(), intersectionPoint.getY(), BounceDirection.FLIP_Y);
+				}	
+			}else if(boxF.intersectsLine(ballTrajectory)) {
+				// Will be treating the problem as a full circle instead of quarter circle segment
+				// Center of circle is conveniently at box C (x, y) coordinates being at the top-left corner
+				Point2D circleFCenter = new Point2D.Double(boxC.getX(), boxC.getY());
+				Point2D intersectionPoint = getCircleLineIntersectionPoint(ballTrajectory.getP1(), ballTrajectory.getP2(), circleFCenter, ballRadius);
+				// If ball approaches from left
+				if(ballX < ballX + ballDirX) {
+					return new BouncePoint(intersectionPoint.getX(), intersectionPoint.getY(), BounceDirection.FLIP_Y);
+				}
+				// If ball approaches from right
+				else{
+					return new BouncePoint(intersectionPoint.getX(), intersectionPoint.getY(), BounceDirection.FLIP_X);
+				}
+			}
+			//unlikely that this will be reached (if it is, then problem is with boxes E/F)
+			return null;
+		} else {
+			return null;
+		}
+	}
+	
+	/**
+	 *Who wrote this and what for lol?
+	 *
+	 */
+	public Point2D getCircleLineIntersectionPoint(Point2D pointA, Point2D pointB, Point2D center, double radius) {
+        double baX = pointB.getX() - pointA.getX();
+        double baY = pointB.getY() - pointA.getY();
+        double caX = center.getX() - pointA.getX();
+        double caY = center.getY() - pointA.getY();
+
+        double a = baX * baX + baY * baY;
+        double bBy2 = baX * caX + baY * caY;
+        double c = caX * caX + caY * caY - radius * radius;
+
+        double pBy2 = bBy2 / a;
+        double q = c / a;
+
+        double disc = pBy2 * pBy2 - q;
+        if (disc < 0) {
+            return null;
+        }
+        // if disc == 0 ... dealt with later
+        double tmpSqrt = Math.sqrt(disc);
+        double abScalingFactor1 = -pBy2 + tmpSqrt;
+        double abScalingFactor2 = -pBy2 - tmpSqrt;
+
+        Point2D p1 = new Point2D.Double(pointA.getX() - baX * abScalingFactor1, pointA.getY() - baY * abScalingFactor1);
+        if (disc == 0) { // abScalingFactor1 == abScalingFactor2
+            return p1;
+        }
+        Point2D p2 = new Point2D.Double(pointA.getX() - baX * abScalingFactor2, pointA.getY() - baY * abScalingFactor2);
+        
+        if(pointA.distanceSq(p1) < pointA.distanceSq(p2)) {
+        	return p1;
+        }else {
+        	return p2;
+        }
+    }
+    
+    // used by calculateBouncePointPaddle & calculateBouncePointWall
+	public Point2D getIntersectionPoint(Line2D lineA, Line2D lineB) {
+
+        double x1 = lineA.getX1();
+        double y1 = lineA.getY1();
+        double x2 = lineA.getX2();
+        double y2 = lineA.getY2();
+
+        double x3 = lineB.getX1();
+        double y3 = lineB.getY1();
+        double x4 = lineB.getX2();
+        double y4 = lineB.getY2();
+
+        Point2D p = null;
+
+        double d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+        if (d != 0) {
+            double xi = ((x3 - x4) * (x1 * y2 - y1 * x2) - (x1 - x2) * (x3 * y4 - y3 * x4)) / d;
+            double yi = ((y3 - y4) * (x1 * y2 - y1 * x2) - (y1 - y2) * (x3 * y4 - y3 * x4)) / d;
+
+            p = new Point2D.Double(xi, yi);
+
+        }
+        return p;
+    }
+
+  private boolean isOutOfBoundsAndLastLife() {
+    // TODO implement
+    return false;
+  }
+  
+  private boolean isOutOfBounds() {
+    // TODO implement
+    return false;
+  }
+  
+  private boolean hitLastBlockAndLastLevel() {
+    // TODO implement
+    return false;
+  }
+  
+  private boolean hitLastBlock(){
+    // TODO implement
+    return false;
+  }
+  
+  private boolean hitBlock() {
+    // TODO implement
+    return false;
+  }
+  
+    /**
+	 * Feature 3 : hitWall()
+	 * @author: Walid Chabchoub
+	 *  
+	 */
+	private boolean hitWall(){
+
+		double ballX = this.getCurrentBallX();
+		double ballY = this.getCurrentPaddleY();
+		double ballDirX = this.getBallDirectionX();
+		double ballDirY = this.getBallDirectionY();
+
+		BouncePoint bp = calculateBouncePointWall(ballX, ballY, ballDirX, ballDirY);
+		if(bp!= null) {
+			setBounce(bp);
+			return true;
+		}else {
+			return false;
+		}	
+	}
+	
+	/**
+	 * Feature 3 : calculateBouncePointWall()
+	 * @author: Walid Chabchoub
+	 *  
+	 */
+	private BouncePoint calculateBouncePointWall(double ballX, double ballY, double ballDirX, double ballDirY) {
+		/*
+		 * Setting Rectangle2D(x, y, width, height) with x/y being at top-left of rectangle
+		 * In Java AWT, height is the width in the Iter 4 sample sol
+		 * and width is the length of box A 
+		 */
+
+		// Ball related variables 
+		double ballRadius = Ball.BALL_DIAMETER/2;
+		Line2D ballTrajectory = new Line2D.Double(ballX, ballY, ballX+ballDirX, ballY+ballDirY);
+
+
+		// Defining our boxes A, B, C, D
+		
+		Rectangle2D boxA = new Rectangle2D.Double(0, 0, ballRadius, Game.PLAY_AREA_SIDE-ballRadius);
+		Rectangle2D boxB = new Rectangle2D.Double(ballRadius, 0, Game.PLAY_AREA_SIDE-2*ballRadius, ballRadius);
+		Rectangle2D boxC = new Rectangle2D.Double(Game.PLAY_AREA_SIDE-ballRadius, 0, ballRadius, Game.PLAY_AREA_SIDE-ballRadius);
+		//boxD not really used here, just for coordinates
+		Rectangle2D boxD = new Rectangle2D.Double(0, Game.PLAY_AREA_SIDE-ballRadius, Game.PLAY_AREA_SIDE, ballRadius);
+		
+		if(boxA.intersectsLine(ballTrajectory)) {
+			//yellowLineA here is the right of box A where the ball is going to hit
+			Line2D yellowLineA = new Line2D.Double(ballRadius, ballRadius, ballRadius, boxD.getY());
+			Point2D intersectionPoint = getIntersectionPoint(ballTrajectory, yellowLineA);
+			// Checking if hit is at the corner of A & B, then need to flip both (corner case)
+			if(ballTrajectory.getP2().equals(yellowLineA.getP1())) {
+				return new BouncePoint(intersectionPoint.getX(), intersectionPoint.getY(), BounceDirection.FLIP_BOTH);		
+			}else {
+				return new BouncePoint(intersectionPoint.getX(), intersectionPoint.getY(), BounceDirection.FLIP_X);		
+			}
+		}else if(boxB.intersectsLine(ballTrajectory)) {
+			//yellowLineB here is the bottom of box B where the ball is going to hit
+			Line2D yellowLineB = new Line2D.Double(ballRadius, ballRadius, boxC.getX(), ballRadius);
+			Point2D intersectionPoint = getIntersectionPoint(ballTrajectory, yellowLineB);
+			// Checking if hit is at the corner of B, then need to flip both (corner case)
+			if(ballTrajectory.getP2().equals(yellowLineB.getP1()) || ballTrajectory.getP2().equals(yellowLineB.getP2())){
+				return new BouncePoint(intersectionPoint.getX(), intersectionPoint.getY(), BounceDirection.FLIP_BOTH);		
+			}else {
+				return new BouncePoint(intersectionPoint.getX(), intersectionPoint.getY(), BounceDirection.FLIP_Y);		
+			}
+		}else if(boxC.intersectsLine(ballTrajectory)) {
+			//yellowLineC here is the right of box A where the ball is going to hit
+			Line2D yellowLineC = new Line2D.Double(boxC.getX(), ballRadius, boxC.getX(), boxD.getY());
+			Point2D intersectionPoint = getIntersectionPoint(ballTrajectory, yellowLineC);
+			// Checking if hit is at the corner of A & B, then need to flip both (corner case)
+			if(ballTrajectory.getP2().equals(yellowLineC.getP1())) {
+				return new BouncePoint(intersectionPoint.getX(), intersectionPoint.getY(), BounceDirection.FLIP_BOTH);		
+			}else {
+				return new BouncePoint(intersectionPoint.getX(), intersectionPoint.getY(), BounceDirection.FLIP_X);		
+			}
+		}else {
+			return null;
+		}
+	}
+  
+  // Actions
+  
+  private void doSetup() {
+	    resetCurrentBallX();
+	    resetCurrentBallY();
+	    resetBallDirectionX();
+	    resetBallDirectionY();
+	    resetCurrentPaddleX();
+	    Game game = getGame();
+	    Level level = game.getLevel(currentLevel - 1);
+	    List<BlockAssignment> assignments = level.getBlockAssignments();
+	    // create block assignments
+	    for (BlockAssignment a : assignments) {
+	      PlayedBlockAssignment pblock = new PlayedBlockAssignment(
+	          ( Game.WALL_PADDING + ( ( Block.SIZE + Game.COLUMNS_PADDING ) * ( a.getGridHorizontalPosition() - 1 ) ) ),
+	          ( Game.WALL_PADDING + ( ( Block.SIZE + Game.ROW_PADDING ) * ( a.getGridVerticalPosition() - 1 ) ) ),
+	          a.getBlock(),
+	          this
+	          );
+	      /* TODO do we have to do anything with pblock to add it to a game */
+	    }
+	    // add random blocks to fill game level
+	    while (numberOfBlocks() < game.getNrBlocksPerLevel()) {
+	      Random r = new Random();
+	      // find random x and y for new block
+	      // can fit 14 blocks width wise (max is like 14.8)
+	      // can fit 16 blocks height wise (max is like 16.8)
+	      int x = r.nextInt(15);
+	      int y = r.nextInt(17);
+	      PlayedBlockAssignment pblock = new PlayedBlockAssignment(
+	          ( Game.WALL_PADDING + ( ( Block.SIZE + Game.COLUMNS_PADDING ) * ( x ) ) ), 
+	          ( Game.WALL_PADDING + ( ( Block.SIZE + Game.ROW_PADDING ) * ( y ) ) ), 
+	          game.getRandomBlock(), this);
+	      /* TODO do we have to do anything with pblock to add it to a game */
+	    }
+  }
+  
+  /**
+	 * Feature 3 : doHitPaddleOrWall()
+	 * @author: Walid Chabchoub
+	 *  
+	 */
+	private void doHitPaddleOrWall(){
+		
+		BouncePoint bp = this.getBounce();
+		double newX, newY, newDirX, newDirY;
+		// Flipping only X
+		if(bp.getDirection() == BounceDirection.FLIP_X) {
+			newX = bp.getX();
+			newY = bp.getY();
+			newDirX = -1*this.getBallDirectionX();
+			if(this.getBallDirectionY()<0) {
+				newDirY = this.getBallDirectionY() - 0.1*Math.abs(getBallDirectionX());
+			}else {
+				newDirY = this.getBallDirectionY() + 0.1*Math.abs(getBallDirectionX());
+			}
+		// Flipping only Y
+		}else if(bp.getDirection() == BounceDirection.FLIP_Y) {
+			newX = bp.getX();
+			newY = bp.getY();
+			newDirY = -1*this.getBallDirectionY();
+			if(this.getBallDirectionX()<0) {
+				newDirX = this.getBallDirectionX() - 0.1*Math.abs(getBallDirectionY());
+			}else {
+				newDirX = this.getBallDirectionX() + 0.1*Math.abs(getBallDirectionY());
+			}
+		}
+		// If we're fliping both X & Y
+		else {
+			newX = bp.getX();
+			newY = bp.getY();
+			newDirX = -1*this.getBallDirectionX();
+			newDirY = -1*this.getBallDirectionY();
+		}
+		
+		this.setCurrentBallX(newX);
+		this.setCurrentBallY(newY);
+		this.setBallDirectionX(newDirX);
+		this.setBallDirectionY(newDirY);
+	
+	}
+
+  private void doOutOfBounds() {
+    // TODO implement
+  }
+
+  private void doHitBlock() {
+    // TODO implement
+  }
+
+  private void doHitBlockNextLevel() {
+    // TODO implement
+  }
+
+  /**
+	 * Feature 89 : doHitPaddleOrWall()
+	 * @author: Mahdis Asaadi
+	 *  
+	 */
+  private void doHitNothingAndNotOutOfBounds() {
+    
+    double x=this.getCurrentBallX();
+    double y=this.getCurrentBallY();
+    
+    double dx=this.getBallDirectionX();
+    double dy=this.getBallDirectionY();
+    
+    setCurrentBallX(x+dx);
+    setCurrentBallY(y+dy);
+    
+    
+        
+    
+  }
+
+  private void doGameOver() {
+    // TODO implement
+  }
+  
+  //Not sure if it works
+	public HallOfFameEntry getMostRecentEntry() {
+		List<HallOfFameEntry> entryList= game.getHallOfFameEntries();
+		int index = entryList.size();
+		HallOfFameEntry mostRecent = entryList.get(index-1);
+		return mostRecent;
+
+	}
+
+}

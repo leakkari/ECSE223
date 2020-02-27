@@ -1,0 +1,83 @@
+Controller TODO List: --
+------------------------
+
+Validation Checks that need to be added to Controller methods from Iteration 4:
+--------------------------------------------------------------------------------------
+
+startGame()
+	- check if user is player
+	
+pauseGame()
+	- check if game is currently being played
+	
+resumeGame()
+	- check if game is currently being played
+
+viewHallOfFame()
+	- check if game is currently selected
+
+testGame()
+	- check if user is admin
+	- check if admin is admin of this game
+	
+publishGame()
+	- check if game already published
+	- check if game has all settings set that are required to play
+
+Validation Checks that need to be added to Controller methods from Iterations 2 and 3:
+--------------------------------------------------------------------------------------
+
+createGame():
+	- 
+	
+setGameDetails():
+	- if game.isPublished = true, cannot change game details
+	
+deleteGame():
+	- if game.isPublished = true, cannot change game details
+
+selectGame():
+	- if game.isPublished = true, cannot change game details
+
+updateGame():
+	- if game.isPublished = true, cannot change game details
+	
+addBlock():
+	- if game.isPublished = true, cannot change game details
+	
+deleteBlock()
+	- if game.isPublished = true, cannot change game details
+	
+updateBlock():
+	- if game.isPublished = true, cannot change game details
+	
+
+positionBlock():
+	- if game.isPublished = true, cannot change game details
+	
+moveBlock():
+	- if game.isPublished = true, cannot change game details
+	
+removeBlock():
+	- if game.isPublished = true, cannot change game details
+	
+saveGame():
+	-
+	
+register():
+	-
+	
+login():
+logout():
+	-
+	
+// QUERY AND HELPER METHODS
+
+getDesignableGames()
+	- if game.isPublished = true, it is not a designable game, do not return
+
+anyOtherMethodToDoWith getting stuff from designable games():
+	- same as above
+	
+getUserMode():
+	-

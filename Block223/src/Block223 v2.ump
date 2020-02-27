@@ -1,0 +1,282 @@
+namespace ca.mcgill.ecse223.block.model;
+
+use Block223PlayMode.ump;
+use Block223Persistence.ump;
+use Block223States.ump;
+
+class Block223 {
+   1 <@>- * User users;
+   1 <@>- * UserRole roles;
+   1 <@>- * Game games;
+   public Game findGame(String name) {
+	  for(Game currGame : games) {
+		  if(currGame.getName().equals(name)) {
+			  return currGame;
+		  }
+	  }
+	  return null;
+   }
+   /* Added manually by Lea */
+   /* should be tested */
+   public PlayedGame findPlayableGame(int id) {
+	   for(PlayedGame curPlayedGame : playedGames) {
+		   if(curPlayedGame.getId() == id) {
+			   return curPlayedGame;
+		   }
+	   }
+	   return null;
+   }
+}
+
+class User {
+   unique username;
+   before constructor{
+   	if (aUsername== null || aUsername == ""){
+   		throw new RuntimeException("The username must be specified.");
+   	}
+   	if (User.hasWithUsername(aUsername)) {
+       throw new RuntimeException("The username has already been taken.");
+    }
+   }
+   1 -> 1..2 UserRole roles;
+   /* added be lea, not sure if it works */
+   public static String findUsername(UserRole player) {
+	  String userName = "";
+	  for(String key : usersByUsername.keySet()) {
+		  if(usersByUsername.get(key).equals(player)) {
+			   userName = key;
+		  }
+
+ 	  }
+	  return userName;
+  }
+}
+
+class UserRole {
+   abstract;
+   password;
+   before constructor {
+     if (aPassword == null || aPassword.isEmpty()) {
+       throw new RuntimeException("The player password needs to be specified.");
+     }
+   }
+}
+
+class Admin {
+   isA UserRole;
+}
+
+
+class Player {
+   isA UserRole;
+   before constructor{
+   	if (aPassword == null || aPassword == ""){
+   		throw new RuntimeException("The Player Password needs to be specified");
+   	}
+   }
+}
+
+class Game {
+   const Integer MIN_NR_LEVELS = 1;
+   const Integer MAX_NR_LEVELS = 99; // this is somewhat redundant because the max multiplicity is enforced by Umple
+   const Integer PLAY_AREA_SIDE = 390; // play area is now constant
+   const Integer WALL_PADDING = 10;
+   const Integer COLUMNS_PADDING = 5;
+   const Integer ROW_PADDING = 2;
+   unique name;
+   Integer nrBlocksPerLevel;
+   * -- 1 Admin admin;
+   1 <@>- * Block blocks;
+   1 <@>- 1..99 Level levels;
+   1 <@>- * BlockAssignment blockAssignments;
+   1 <@>- 1 Ball ball;
+   1 <@>- 1 Paddle paddle;
+   before constructor {
+     if (aName == null || aName == "") {
+       throw new RuntimeException("The name of a game must be specified.");
+     }
+   }
+   before setNrBlocksPerLevel {
+     if (aNrBlocksPerLevel <= 0) {
+       throw new RuntimeException("The number of blocks per level must be greater than zero.");
+     }
+     int n = 0; /* n is max num of blocks in an existing level. */
+     for (int i = 0; i<getLevels().size(); i++) {
+     	if (getLevels().get(i).numberOfBlockAssignments() > n) {
+     		n = getLevels().get(i).numberOfBlockAssignments();
+     	}
+     }
+     if (aNrBlocksPerLevel < n) {
+       throw new RuntimeException("The maximum number of blocks per level cannot be less than the number of existing blocks in a level.");
+     }
+   }
+   before setName {
+     if (aName == null || aName.isEmpty()) {
+       throw new RuntimeException("The name of a game must be specified.");
+     }
+   }
+   /* Find block method added to umple so would not be overwritten when domain model regenrated. */
+   public Block findBlock(int id) {
+	List<Block> blocksFound = this.getBlocks();
+	for(Block currentBlock: blocksFound) {
+		if(id == currentBlock.getId()) {
+			return currentBlock;
+		}
+	}
+	return null;	
+	}
+}
+
+class Block {
+   const Integer MIN_COLOR = 0;
+   const Integer MAX_COLOR = 255;
+   const Integer MIN_POINTS = 1;
+   const Integer MAX_POINTS = 1000; 
+   const Integer SIZE = 20;
+   autounique id;
+   Integer red;
+   Integer green;
+   Integer blue;
+   Integer points;
+   before constructor{
+   	if (aRed < 0 || aRed > 255){
+   		throw new RuntimeException("Red must be between 0 and 255.");
+   	}
+   	if (aGreen < 0 || aGreen > 255){
+   		throw new RuntimeException("Green must be between 0 and 255.");
+   	}
+   	if (aBlue < 0 || aBlue > 255){
+   		throw new RuntimeException("Blue must be between 0 and 255.");
+   	}
+   	if (aPoints < 1 || aPoints > 1000){
+   		throw new RuntimeException("Points must be between 1 and 1000.");
+   	}
+   }
+   before setRed {
+   	 if (aRed < 0 || aRed > 255) {
+   	   throw new RuntimeException("Red must be between 0 and 255.");
+   	 }
+   }
+   before setGreen {
+   	 if (aGreen < 0 || aGreen > 255) {
+   	   throw new RuntimeException("Green must be between 0 and 255.");
+   	 }
+   }
+   before setBlue {
+   	 if (aBlue < 0 || aBlue > 255) {
+   	   throw new RuntimeException("Blue must be between 0 and 255.");
+   	 }
+   }
+   before setPoints {
+   	 if (aPoints <= 0 || aPoints > 1000) {
+   	   throw new RuntimeException("Points must be between 1 and 1000.");
+   	 }
+   }
+}
+
+// random attribute not needed anymore
+// Each level is filled up with random blocks just before playing the level to reach the nrBlocksPerLevel defined in Game
+class Level {
+   /* findBlockAssignment method added to umple so would not be overwritten when domain model regenrated. */
+	public BlockAssignment findBlockAssignment(int gridHorizontalPosition, int gridVerticalPosition) {
+	  List<BlockAssignment> assignments = getBlockAssignments();
+	  int h,v;
+	  for (BlockAssignment assignment : assignments) {
+		  h = assignment.getGridHorizontalPosition();
+		  v = assignment.getGridVerticalPosition();	  
+		  if (h == gridHorizontalPosition && v == gridVerticalPosition) {
+			  return assignment;
+		  }
+	  }
+	  return null;
+  }
+}
+
+class BlockAssignment {
+   Integer gridHorizontalPosition;
+   Integer gridVerticalPosition;
+   Integer maxNumberOfHorizontalBlocks = ((Game.PLAY_AREA_SIDE + Game.COLUMNS_PADDING) - (Game.WALL_PADDING*2))/(Block.SIZE + Game.COLUMNS_PADDING);
+   Integer maxNumberOfVerticalBlocks = (Game.PLAY_AREA_SIDE + Game.ROW_PADDING - Paddle.VERTICAL_DISTANCE - Paddle.PADDLE_WIDTH - Game.WALL_PADDING)/(Block.SIZE + Game.ROW_PADDING);
+   
+   before constructor{
+    if (aGridHorizontalPosition < 1){
+		throw new RuntimeException("The horizontal position must be between 1 and " + maxNumberOfHorizontalBlocks + ".");
+    } 
+    if (aGridVerticalPosition < 1){
+	  throw new RuntimeException("The vertical position must be between 1 and " + maxNumberOfVerticalBlocks + ".");
+    }
+    /*
+    int maxNumBlockAssignments = 0;
+    for (Level l : aGame.getLevels()) {
+      if (l.getBlockAssignments().size() > maxNumBlockAssignments) {
+        maxNumBlockAssignments = l.getBlockAssignments().size();
+      }
+    }
+    if (maxNumberOfHorizontalBlocks < maxNumBlockAssignments) {
+    	throw new RuntimeException("The maximum number of blocks per level cannot be less than the number of existing blocks in a level.");
+    }
+    if (maxNumberOfVerticalBlocks < maxNumBlockAssignments) {
+    	throw new RuntimeException("The maximum number of blocks per level cannot be less than the number of existing blocks in a level.");
+    }
+    */
+  }
+  before setGridHorizontalPosition{
+    if (aGridHorizontalPosition < 1 || aGridHorizontalPosition > maxNumberOfHorizontalBlocks){
+    	throw new RuntimeException("The horizontal position must be between 1 and " + maxNumberOfHorizontalBlocks + ".");
+      }
+	}
+	before setGridVerticalPosition{
+      if (aGridVerticalPosition < 1 || aGridVerticalPosition > maxNumberOfVerticalBlocks){
+		throw new RuntimeException("The vertical position must be between 1 and " + maxNumberOfVerticalBlocks + ".");
+      }
+	}
+   * -- 1 Level level;
+   * -- 1 Block block;
+}
+
+class Ball {
+   const Integer BALL_DIAMETER = 10;
+   Integer minBallSpeedX;
+   Integer minBallSpeedY;
+   Double ballSpeedIncreaseFactor;
+   before setMinBallSpeedX {
+     if (aMinBallSpeedX < 0) {
+       throw new RuntimeException("The minimum speed of the ball must be greater than zero.");
+     }
+   }
+   before setMinBallSpeedY {
+     if (aMinBallSpeedY < 0) {
+       throw new RuntimeException("The minimum speed of the ball must be greater than zero.");
+     } 
+   }
+   before setBallSpeedIncreaseFactor {
+     if (aBallSpeedIncreaseFactor <= 0) {
+       throw new RuntimeException("The speed increase factor of the ball must be greater than zero.");
+     }
+   }
+}
+
+class Paddle {
+   const Integer PADDLE_WIDTH = 5;
+   const Integer VERTICAL_DISTANCE = 30;
+   Integer maxPaddleLength;
+   Integer minPaddleLength;
+   before setMaxPaddleLength {
+     if (aMaxPaddleLength <= 0 || aMaxPaddleLength > 390) {
+       throw new RuntimeException("The maximum length of the paddle must be greater than zero and less than or equal to 390.");	
+     }
+   }
+   before setMinPaddleLength {
+     if (aMinPaddleLength <= 0) {
+       throw new RuntimeException("The minimum length of the paddle must be greater than zero.");	
+     }
+   }
+}
+
+external Exception{}
+
+class InvalidInputException {
+	isA Exception;
+	depend java.lang.Exception;
+	String errorMsg;
+}
